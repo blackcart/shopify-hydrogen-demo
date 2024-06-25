@@ -1,4 +1,4 @@
-import {useRef, Suspense} from 'react';
+import {useRef, Suspense, useState, useEffect} from 'react';
 import {Disclosure, Listbox} from '@headlessui/react';
 import {
   defer,
@@ -7,6 +7,7 @@ import {
   type LoaderFunctionArgs,
 } from '@shopify/remix-oxygen';
 import {useLoaderData, Await, useNavigate} from '@remix-run/react';
+import {useIsHydrated} from '~/hooks/useIsHydrated';
 import {
   getSeoMeta,
   Money,
@@ -17,6 +18,7 @@ import {
 } from '@shopify/hydrogen';
 import invariant from 'tiny-invariant';
 import clsx from 'clsx';
+import Tbyb from '@blackcart/blackcart-tbyb';
 
 import type {
   ProductQuery,
@@ -35,6 +37,7 @@ import {seoPayload} from '~/lib/seo.server';
 import type {Storefront} from '~/lib/type';
 import {routeHeaders} from '~/data/cache';
 import {MEDIA_FRAGMENT, PRODUCT_CARD_FRAGMENT} from '~/data/fragments';
+import {useAsyncCart} from '~/hooks/useAsyncCart';
 
 export const headers = routeHeaders;
 
@@ -56,10 +59,10 @@ export async function loader(args: LoaderFunctionArgs) {
  * needed to render the page. If it's unavailable, the whole page should 400 or 500 error.
  */
 async function loadCriticalData({
-  params,
-  request,
-  context,
-}: LoaderFunctionArgs) {
+                                  params,
+                                  request,
+                                  context,
+                                }: LoaderFunctionArgs) {
   const {productHandle} = params;
   invariant(productHandle, 'Missing productHandle param, check route filename');
 
@@ -137,9 +140,9 @@ export const meta = ({matches}: MetaArgs<typeof loader>) => {
 };
 
 function redirectToFirstVariant({
-  product,
-  request,
-}: {
+                                  product,
+                                  request,
+                                }: {
   product: ProductQuery['product'];
   request: Request;
 }) {
@@ -247,8 +250,8 @@ export default function Product() {
 }
 
 export function ProductForm({
-  variants,
-}: {
+                              variants,
+                            }: {
   variants: ProductVariantFragmentFragment[];
 }) {
   const {product, storeDomain} = useLoaderData<typeof loader>();
@@ -269,6 +272,45 @@ export function ProductForm({
     selectedVariant?.price?.amount < selectedVariant?.compareAtPrice?.amount;
 
   const navigate = useNavigate();
+
+  const [sellingPlanId, setSellingPlanId] = useState('');
+  // Store the current isTbybSelected value
+  const [isTbybSelected, setIsTbybSelected] = useState(true);
+  const isHydrated = useIsHydrated();
+
+  const [blackcartCart, setBlackcartCart] = useState([]);
+
+  const tbybCallback = (sellingPlanId: string, isTbybSelected: boolean) => {
+    if (isTbybSelected) {
+      setSellingPlanId(sellingPlanId);
+    } else {
+      setSellingPlanId('');
+    }
+    setIsTbybSelected(isTbybSelected);
+  };
+
+  const cart = useAsyncCart();
+
+  const initializeBlackcartCart = () => {
+    let result = [];
+    cart?.lines?.nodes.forEach((line) => {
+      result.push({
+        id: line.merchandise.id,
+        isTbyb: line.sellingPlanAllocation != null,
+        quantity: line.quantity,
+        price: {
+          amount: line.cost.amountPerQuantity.amount,
+          currency: line.cost.amountPerQuantity.currencyCode,
+        },
+      });
+    });
+
+    setBlackcartCart(result);
+  };
+
+  useEffect(() => {
+    initializeBlackcartCart();
+  }, [cart]);
 
   return (
     <div className="grid gap-10">
@@ -381,6 +423,23 @@ export function ProductForm({
         </VariantSelector>
         {selectedVariant && (
           <div className="grid items-stretch gap-4">
+            {!isOutOfStock && isHydrated && (
+              <Tbyb
+                variants={variants.map((variant) => ({
+                  id: variant.id,
+                  price: {
+                    amount: parseFloat(variant.price.amount),
+                    currency: variant.price.currencyCode,
+                  },
+                  sellingPlans: variant.sellingPlanAllocations.edges.map(
+                    (edge) => edge.node.sellingPlan.id,
+                  ),
+                }))}
+                currentVariantId={selectedVariant.id}
+                shopName="hydrogen-preview"
+                cart={blackcartCart}
+              />
+            )}
             {isOutOfStock ? (
               <Button variant="secondary" disabled>
                 <Text>Sold out</Text>
@@ -391,10 +450,12 @@ export function ProductForm({
                   {
                     merchandiseId: selectedVariant.id!,
                     quantity: 1,
+                    ...(sellingPlanId ? {sellingPlanId: sellingPlanId} : {}),
                   },
                 ]}
                 variant="primary"
                 data-test="add-to-cart"
+                onClick={addToCartHandler()}
               >
                 <Text
                   as="span"
@@ -433,10 +494,10 @@ export function ProductForm({
 }
 
 function ProductDetail({
-  title,
-  content,
-  learnMore,
-}: {
+                         title,
+                         content,
+                         learnMore,
+                       }: {
   title: string;
   content: string;
   learnMore?: string;
@@ -513,6 +574,15 @@ const PRODUCT_VARIANT_FRAGMENT = `#graphql
     product {
       title
       handle
+    }
+    sellingPlanAllocations(first:20) {
+      edges {
+        node {
+          sellingPlan {
+            id
+          }
+        }
+      }
     }
   }
 `;
