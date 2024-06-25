@@ -35,7 +35,7 @@ export function Cart({
   onClose?: () => void;
   cart: CartReturn | null;
 }) {
-  const linesCount = Boolean(cart?.lines?.edges?.length || 0);
+  const linesCount = Boolean(cart?.lines?.nodes?.length || 0);
 
   return (
     <>
@@ -282,6 +282,20 @@ function CartLineItem({line}: {line: CartLine}) {
             )}
           </Heading>
 
+          {line.sellingPlanAllocation && (
+            <p
+              className="font-sans-new text-xxxs text-black border border-black mt-2 px-2 py-1 rounded"
+              style={{
+                fontSize: '10px',
+                width: '150px',
+                color: 'white',
+                borderColor: 'white',
+              }}
+            >
+              {line.sellingPlanAllocation.sellingPlan.name}
+            </p>
+          )}
+
           <div className="grid pb-2">
             {(merchandise?.selectedOptions || []).map((option) => (
               <Text color="subtle" key={option.name}>
@@ -366,10 +380,11 @@ function CartLineQuantityAdjust({line}: {line: CartLine}) {
 
         <UpdateCartButton lines={[{id: lineId, quantity: nextQuantity}]}>
           <button
-            className="w-10 h-10 transition text-primary/50 hover:text-primary"
             name="increase-quantity"
-            value={nextQuantity}
             aria-label="Increase quantity"
+            className="w-10 h-10 transition text-primary/50 hover:text-primary disabled:text-primary/10"
+            value={nextQuantity}
+            disabled={line?.sellingPlanAllocation != null}
           >
             <span>&#43;</span>
             <OptimisticInput
@@ -413,6 +428,10 @@ function CartLinePrice({
   [key: string]: any;
 }) {
   if (!line?.cost?.amountPerQuantity || !line?.cost?.totalAmount) return null;
+
+  if (line.sellingPlanAllocation) {
+    line.cost.totalAmount.amount = line.sellingPlanAllocation.checkoutChargeAmount.amount;
+  }
 
   const moneyV2 =
     priceType === 'regular'
