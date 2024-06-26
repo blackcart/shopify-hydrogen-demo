@@ -4,6 +4,7 @@ import {
   type LoaderFunctionArgs,
   type AppLoadContext,
   type MetaArgs,
+  SerializeFrom,
 } from '@shopify/remix-oxygen';
 import {
   isRouteErrorResponse,
@@ -14,6 +15,7 @@ import {
   ScrollRestoration,
   useRouteLoaderData,
   useRouteError,
+  useMatches,
   type ShouldRevalidateFunction,
 } from '@remix-run/react';
 import {
@@ -125,6 +127,11 @@ function loadDeferredData({context}: LoaderFunctionArgs) {
     cart: cart.get(),
   };
 }
+
+export const useRootLoaderData = () => {
+  const [root] = useMatches();
+  return root?.data as SerializeFrom<typeof loader>;
+};
 
 export const meta = ({data}: MetaArgs<typeof loader>) => {
   return getSeoMeta(data!.seo as SeoConfig);

@@ -14,12 +14,11 @@ import {
   ShopPayButton,
   VariantSelector,
   getSelectedProductOptions,
-  Analytics, CartForm,
+  Analytics,
 } from '@shopify/hydrogen';
 import invariant from 'tiny-invariant';
 import clsx from 'clsx';
-import Tbyb from '@blackcart/blackcart-tbyb'
-import {CartProvider, useCart} from "@shopify/hydrogen-react";
+import Tbyb from '@blackcart/blackcart-tbyb';
 
 import type {
   ProductQuery,
@@ -38,6 +37,7 @@ import {seoPayload} from '~/lib/seo.server';
 import type {Storefront} from '~/lib/type';
 import {routeHeaders} from '~/data/cache';
 import {MEDIA_FRAGMENT, PRODUCT_CARD_FRAGMENT} from '~/data/fragments';
+import {useAsyncCart} from '~/hooks/useAsyncCart';
 
 export const headers = routeHeaders;
 
@@ -101,15 +101,12 @@ async function loadCriticalData({
     url: request.url,
   });
 
-  const {cart} = context;
-
   return {
     product,
     shop,
     storeDomain: shop.primaryDomain.url,
     recommended,
     seo,
-    cart: await cart.get(),
   };
 }
 
@@ -163,93 +160,91 @@ function redirectToFirstVariant({
 }
 
 export default function Product() {
-  const {product, shop, recommended, variants, cart} = useLoaderData<typeof loader>();
+  const {product, shop, recommended, variants} = useLoaderData<typeof loader>();
   const {media, title, vendor, descriptionHtml} = product;
   const {shippingPolicy, refundPolicy} = shop;
 
   return (
     <>
-      <CartProvider data={cart}>
-        <Section className="px-0 md:px-8 lg:px-12">
-          <div className="grid items-start md:gap-6 lg:gap-20 md:grid-cols-2 lg:grid-cols-3">
-            <ProductGallery
-              media={media.nodes}
-              className="w-full lg:col-span-2"
-            />
-            <div className="sticky md:-mb-nav md:top-nav md:-translate-y-nav md:h-screen md:pt-nav hiddenScroll md:overflow-y-scroll">
-              <section className="flex flex-col w-full max-w-xl gap-8 p-6 md:mx-auto md:max-w-sm md:px-0">
-                <div className="grid gap-2">
-                  <Heading as="h1" className="whitespace-normal">
-                    {title}
-                  </Heading>
-                  {vendor && (
-                    <Text className={'opacity-50 font-medium'}>{vendor}</Text>
-                  )}
-                </div>
-                <Suspense fallback={<ProductForm variants={[]} />}>
-                  <Await
-                    errorElement="There was a problem loading related products"
-                    resolve={variants}
-                  >
-                    {(resp) => (
-                      <ProductForm
-                        variants={resp.product?.variants.nodes || []}
-                      />
-                    )}
-                  </Await>
-                </Suspense>
-                <div className="grid gap-4 py-4">
-                  {descriptionHtml && (
-                    <ProductDetail
-                      title="Product Details"
-                      content={descriptionHtml}
+      <Section className="px-0 md:px-8 lg:px-12">
+        <div className="grid items-start md:gap-6 lg:gap-20 md:grid-cols-2 lg:grid-cols-3">
+          <ProductGallery
+            media={media.nodes}
+            className="w-full lg:col-span-2"
+          />
+          <div className="sticky md:-mb-nav md:top-nav md:-translate-y-nav md:h-screen md:pt-nav hiddenScroll md:overflow-y-scroll">
+            <section className="flex flex-col w-full max-w-xl gap-8 p-6 md:mx-auto md:max-w-sm md:px-0">
+              <div className="grid gap-2">
+                <Heading as="h1" className="whitespace-normal">
+                  {title}
+                </Heading>
+                {vendor && (
+                  <Text className={'opacity-50 font-medium'}>{vendor}</Text>
+                )}
+              </div>
+              <Suspense fallback={<ProductForm variants={[]} />}>
+                <Await
+                  errorElement="There was a problem loading related products"
+                  resolve={variants}
+                >
+                  {(resp) => (
+                    <ProductForm
+                      variants={resp.product?.variants.nodes || []}
                     />
                   )}
-                  {shippingPolicy?.body && (
-                    <ProductDetail
-                      title="Shipping"
-                      content={getExcerpt(shippingPolicy.body)}
-                      learnMore={`/policies/${shippingPolicy.handle}`}
-                    />
-                  )}
-                  {refundPolicy?.body && (
-                    <ProductDetail
-                      title="Returns"
-                      content={getExcerpt(refundPolicy.body)}
-                      learnMore={`/policies/${refundPolicy.handle}`}
-                    />
-                  )}
-                </div>
-              </section>
-            </div>
+                </Await>
+              </Suspense>
+              <div className="grid gap-4 py-4">
+                {descriptionHtml && (
+                  <ProductDetail
+                    title="Product Details"
+                    content={descriptionHtml}
+                  />
+                )}
+                {shippingPolicy?.body && (
+                  <ProductDetail
+                    title="Shipping"
+                    content={getExcerpt(shippingPolicy.body)}
+                    learnMore={`/policies/${shippingPolicy.handle}`}
+                  />
+                )}
+                {refundPolicy?.body && (
+                  <ProductDetail
+                    title="Returns"
+                    content={getExcerpt(refundPolicy.body)}
+                    learnMore={`/policies/${refundPolicy.handle}`}
+                  />
+                )}
+              </div>
+            </section>
           </div>
-        </Section>
-        <Suspense fallback={<Skeleton className="h-32" />}>
-          <Await
-            errorElement="There was a problem loading related products"
-            resolve={recommended}
-          >
-            {(products) => (
-              <ProductSwimlane title="Related Products" products={products} />
-            )}
-          </Await>
-        </Suspense>
-        <Analytics.ProductView
-          data={{
-            products: [
-              {
-                id: product.id,
-                title: product.title,
-                price: product.selectedVariant?.price.amount || '0',
-                vendor: product.vendor,
-                variantId: product.selectedVariant?.id || '',
-                variantTitle: product.selectedVariant?.title || '',
-                quantity: 1,
-              },
-            ],
-          }}
-        />
-      </CartProvider>
+        </div>
+      </Section>
+      <Suspense fallback={<Skeleton className="h-32" />}>
+        <Await
+          errorElement="There was a problem loading related products"
+          resolve={recommended}
+        >
+          {(products) => (
+            <ProductSwimlane title="Related Products" products={products} />
+          )}
+        </Await>
+      </Suspense>
+      <Analytics.ProductView
+        data={{
+          products: [
+            {
+              id: product.id,
+              title: product.title,
+              price: product.selectedVariant?.price.amount || '0',
+              vendor: product.vendor,
+              variantId: product.selectedVariant?.id || '',
+              variantTitle: product.selectedVariant?.title || '',
+              quantity: 1,
+            },
+          ],
+        }}
+      />
     </>
   );
 }
@@ -259,7 +254,7 @@ export function ProductForm({
 }: {
   variants: ProductVariantFragmentFragment[];
 }) {
-  const {product, storeDomain, cart} = useLoaderData<typeof loader>();
+  const {product, storeDomain} = useLoaderData<typeof loader>();
 
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -283,19 +278,7 @@ export function ProductForm({
   const [isTbybSelected, setIsTbybSelected] = useState(true);
   const isHydrated = useIsHydrated();
 
-  const initializeBlackcartCart = () => {
-    let result = [];
-    cart.lines.nodes.forEach( (line) => {
-      result.push({
-        id: line.merchandise.id,
-        isTbyb: line.sellingPlanAllocation == null,
-        quantity: line.quantity,
-        price: {amount: line.cost.amountPerQuantity.amount, currency: line.cost.amountPerQuantity.currencyCode},
-      });
-    });
-    return result;
-  };
-  const [blackcartCart, setBlackcartCart] = useState(initializeBlackcartCart);
+  const [blackcartCart, setBlackcartCart] = useState([]);
 
   const tbybCallback = (sellingPlanId: string, isTbybSelected: boolean) => {
     if (isTbybSelected) {
@@ -306,29 +289,33 @@ export function ProductForm({
     setIsTbybSelected(isTbybSelected);
   };
 
-  const {lines} = useCart();
-
-  useEffect(() => {
-    console.log(lines);
-  }, [lines]);
+  const cart = useAsyncCart();
 
   const addToCartHandler = () => {
     // Your add to cart logic, see below for an example
   };
 
-  // useEffect(() => {
-  //   let result = [];
-  //   cart.lines.nodes.forEach( (line) => {
-  //     result.push({
-  //       id: line.merchandise.id,
-  //       isTbyb: line.sellingPlanAllocation == null,
-  //       quantity: line.quantity,
-  //       price: {amount: line.cost.amountPerQuantity.amount, currency: line.cost.amountPerQuantity.currencyCode},
-  //     });
-  //   });
-  //   console.log(result);
-  //   setBlackcartCart(result);
-  // }, [cart]);
+  const initializeBlackcartCart = () => {
+    let result = [];
+    cart?.lines?.nodes.forEach((line) => {
+      result.push({
+        id: line.merchandise.id,
+        isTbyb: line.sellingPlanAllocation == null,
+        quantity: line.quantity,
+        price: {
+          amount: line.cost.amountPerQuantity.amount,
+          currency: line.cost.amountPerQuantity.currencyCode,
+        },
+      });
+    });
+    console.log('initializeBlackcartCart', result);
+
+    setBlackcartCart(result);
+  };
+
+  useEffect(() => {
+    initializeBlackcartCart();
+  }, [cart]);
 
   return (
     <div className="grid gap-10">
@@ -469,9 +456,7 @@ export function ProductForm({
                   {
                     merchandiseId: selectedVariant.id!,
                     quantity: 1,
-                    ...(sellingPlanId
-                      ? {sellingPlanId: sellingPlanId}
-                      : {}),
+                    ...(sellingPlanId ? {sellingPlanId: sellingPlanId} : {}),
                   },
                 ]}
                 variant="primary"
