@@ -59,10 +59,10 @@ export async function loader(args: LoaderFunctionArgs) {
  * needed to render the page. If it's unavailable, the whole page should 400 or 500 error.
  */
 async function loadCriticalData({
-  params,
-  request,
-  context,
-}: LoaderFunctionArgs) {
+                                  params,
+                                  request,
+                                  context,
+                                }: LoaderFunctionArgs) {
   const {productHandle} = params;
   invariant(productHandle, 'Missing productHandle param, check route filename');
 
@@ -140,9 +140,9 @@ export const meta = ({matches}: MetaArgs<typeof loader>) => {
 };
 
 function redirectToFirstVariant({
-  product,
-  request,
-}: {
+                                  product,
+                                  request,
+                                }: {
   product: ProductQuery['product'];
   request: Request;
 }) {
@@ -250,8 +250,8 @@ export default function Product() {
 }
 
 export function ProductForm({
-  variants,
-}: {
+                              variants,
+                            }: {
   variants: ProductVariantFragmentFragment[];
 }) {
   const {product, storeDomain} = useLoaderData<typeof loader>();
@@ -291,16 +291,12 @@ export function ProductForm({
 
   const cart = useAsyncCart();
 
-  const addToCartHandler = () => {
-    // Your add to cart logic, see below for an example
-  };
-
   const initializeBlackcartCart = () => {
     let result = [];
     cart?.lines?.nodes.forEach((line) => {
       result.push({
         id: line.merchandise.id,
-        isTbyb: line.sellingPlanAllocation == null,
+        isTbyb: line.sellingPlanAllocation != null,
         quantity: line.quantity,
         price: {
           amount: line.cost.amountPerQuantity.amount,
@@ -308,7 +304,6 @@ export function ProductForm({
         },
       });
     });
-    console.log('initializeBlackcartCart', result);
 
     setBlackcartCart(result);
   };
@@ -443,7 +438,6 @@ export function ProductForm({
                 currentVariantId={selectedVariant.id}
                 shopName="hydrogen-preview"
                 cart={blackcartCart}
-                tbybCallback={tbybCallback}
               />
             )}
             {isOutOfStock ? (
@@ -500,10 +494,10 @@ export function ProductForm({
 }
 
 function ProductDetail({
-  title,
-  content,
-  learnMore,
-}: {
+                         title,
+                         content,
+                         learnMore,
+                       }: {
   title: string;
   content: string;
   learnMore?: string;
