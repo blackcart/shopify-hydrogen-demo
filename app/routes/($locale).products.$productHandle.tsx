@@ -18,8 +18,8 @@ import {
 } from '@shopify/hydrogen';
 import invariant from 'tiny-invariant';
 import clsx from 'clsx';
-import Tbyb from '@blackcart/blackcart-tbyb';
-
+import Tbyb, {type CartItem} from '@blackcart/blackcart-tbyb';
+import '@blackcart/blackcart-tbyb/dist/index.css';
 import type {
   ProductQuery,
   ProductVariantFragmentFragment,
@@ -59,10 +59,10 @@ export async function loader(args: LoaderFunctionArgs) {
  * needed to render the page. If it's unavailable, the whole page should 400 or 500 error.
  */
 async function loadCriticalData({
-                                  params,
-                                  request,
-                                  context,
-                                }: LoaderFunctionArgs) {
+  params,
+  request,
+  context,
+}: LoaderFunctionArgs) {
   const {productHandle} = params;
   invariant(productHandle, 'Missing productHandle param, check route filename');
 
@@ -140,9 +140,9 @@ export const meta = ({matches}: MetaArgs<typeof loader>) => {
 };
 
 function redirectToFirstVariant({
-                                  product,
-                                  request,
-                                }: {
+  product,
+  request,
+}: {
   product: ProductQuery['product'];
   request: Request;
 }) {
@@ -250,8 +250,8 @@ export default function Product() {
 }
 
 export function ProductForm({
-                              variants,
-                            }: {
+  variants,
+}: {
   variants: ProductVariantFragmentFragment[];
 }) {
   const {product, storeDomain} = useLoaderData<typeof loader>();
@@ -278,7 +278,7 @@ export function ProductForm({
   const [isTbybSelected, setIsTbybSelected] = useState(true);
   const isHydrated = useIsHydrated();
 
-  const [blackcartCart, setBlackcartCart] = useState([]);
+  const [blackcartCart, setBlackcartCart] = useState<CartItem[]>([]);
 
   const tbybCallback = (sellingPlanId: string, isTbybSelected: boolean) => {
     if (isTbybSelected) {
@@ -292,14 +292,14 @@ export function ProductForm({
   const cart = useAsyncCart();
 
   const initializeBlackcartCart = () => {
-    let result = [];
+    let result: CartItem[] = [];
     cart?.lines?.nodes.forEach((line) => {
       result.push({
         id: line.merchandise.id,
         isTbyb: line.sellingPlanAllocation != null,
         quantity: line.quantity,
         price: {
-          amount: line.cost.amountPerQuantity.amount,
+          amount: Number(line.cost.amountPerQuantity.amount),
           currency: line.cost.amountPerQuantity.currencyCode,
         },
       });
@@ -438,6 +438,7 @@ export function ProductForm({
                 currentVariantId={selectedVariant.id}
                 shopName="hydrogen-preview"
                 cart={blackcartCart}
+                tbybCallback={tbybCallback}
               />
             )}
             {isOutOfStock ? (
@@ -455,26 +456,39 @@ export function ProductForm({
                 ]}
                 variant="primary"
                 data-test="add-to-cart"
-                onClick={addToCartHandler()}
               >
                 <Text
                   as="span"
                   className="flex items-center justify-center gap-2"
                 >
                   <span>Add to Cart</span> <span>·</span>{' '}
-                  <Money
-                    withoutTrailingZeros
-                    data={selectedVariant?.price!}
-                    as="span"
-                    data-test="price"
-                  />
-                  {isOnSale && (
+                  {isTbybSelected ? (
                     <Money
                       withoutTrailingZeros
-                      data={selectedVariant?.compareAtPrice!}
+                      data={{
+                        ...selectedVariant?.price!,
+                        amount: '0',
+                      }}
                       as="span"
-                      className="opacity-50 strike"
+                      data-test="price"
                     />
+                  ) : (
+                    <>
+                      <Money
+                        withoutTrailingZeros
+                        data={selectedVariant?.price!}
+                        as="span"
+                        data-test="price"
+                      />
+                      {isOnSale && (
+                        <Money
+                          withoutTrailingZeros
+                          data={selectedVariant?.compareAtPrice!}
+                          as="span"
+                          className="opacity-50 strike"
+                        />
+                      )}
+                    </>
                   )}
                 </Text>
               </AddToCartButton>
@@ -494,10 +508,10 @@ export function ProductForm({
 }
 
 function ProductDetail({
-                         title,
-                         content,
-                         learnMore,
-                       }: {
+  title,
+  content,
+  learnMore,
+}: {
   title: string;
   content: string;
   learnMore?: string;
