@@ -275,7 +275,7 @@ export function ProductForm({
 
   const [sellingPlanId, setSellingPlanId] = useState('');
   // Store the current isTbybSelected value
-  const [isTbybSelected, setIsTbybSelected] = useState(true);
+  const [isTbybSelected, setIsTbybSelected] = useState(false);
   const isHydrated = useIsHydrated();
 
   const [blackcartCart, setBlackcartCart] = useState<CartItem[]>([]);
@@ -462,33 +462,24 @@ export function ProductForm({
                   className="flex items-center justify-center gap-2"
                 >
                   <span>Add to Cart</span> <span>·</span>{' '}
-                  {isTbybSelected ? (
+                  <Money
+                    withoutTrailingZeros
+                    data={{
+                      ...selectedVariant?.price!,
+                      amount: isTbybSelected
+                        ? '0'
+                        : selectedVariant?.price?.amount,
+                    }}
+                    as="span"
+                    data-test="price"
+                  />
+                  {isOnSale && !isTbybSelected && (
                     <Money
                       withoutTrailingZeros
-                      data={{
-                        ...selectedVariant?.price!,
-                        amount: '0',
-                      }}
+                      data={selectedVariant?.compareAtPrice!}
                       as="span"
-                      data-test="price"
+                      className="opacity-50 strike"
                     />
-                  ) : (
-                    <>
-                      <Money
-                        withoutTrailingZeros
-                        data={selectedVariant?.price!}
-                        as="span"
-                        data-test="price"
-                      />
-                      {isOnSale && (
-                        <Money
-                          withoutTrailingZeros
-                          data={selectedVariant?.compareAtPrice!}
-                          as="span"
-                          className="opacity-50 strike"
-                        />
-                      )}
-                    </>
                   )}
                 </Text>
               </AddToCartButton>
