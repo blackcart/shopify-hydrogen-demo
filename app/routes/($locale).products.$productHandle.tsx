@@ -1,4 +1,4 @@
-import {useRef, Suspense} from 'react';
+import {useRef, Suspense, useState, useEffect} from 'react';
 import {Disclosure, Listbox} from '@headlessui/react';
 import {
   defer,
@@ -7,6 +7,7 @@ import {
   type LoaderFunctionArgs,
 } from '@shopify/remix-oxygen';
 import {useLoaderData, Await, useNavigate} from '@remix-run/react';
+import {useIsHydrated} from '~/hooks/useIsHydrated';
 import {
   getSeoMeta,
   Money,
@@ -17,7 +18,8 @@ import {
 } from '@shopify/hydrogen';
 import invariant from 'tiny-invariant';
 import clsx from 'clsx';
-
+import Tbyb, {type CartItem} from '@blackcart/blackcart-tbyb';
+import '@blackcart/blackcart-tbyb/dist/index.css';
 import type {
   ProductQuery,
   ProductVariantFragmentFragment,
@@ -35,6 +37,7 @@ import {seoPayload} from '~/lib/seo.server';
 import type {Storefront} from '~/lib/type';
 import {routeHeaders} from '~/data/cache';
 import {MEDIA_FRAGMENT, PRODUCT_CARD_FRAGMENT} from '~/data/fragments';
+import {useAsyncCart} from '~/hooks/useAsyncCart';
 
 export const headers = routeHeaders;
 
@@ -270,6 +273,45 @@ export function ProductForm({
 
   const navigate = useNavigate();
 
+  const [sellingPlanId, setSellingPlanId] = useState('');
+  // Store the current isTbybSelected value
+  const [isTbybSelected, setIsTbybSelected] = useState(false);
+  const isHydrated = useIsHydrated();
+
+  const [blackcartCart, setBlackcartCart] = useState<CartItem[]>([]);
+
+  const tbybCallback = (sellingPlanId: string, isTbybSelected: boolean) => {
+    if (isTbybSelected) {
+      setSellingPlanId(sellingPlanId);
+    } else {
+      setSellingPlanId('');
+    }
+    setIsTbybSelected(isTbybSelected);
+  };
+
+  const cart = useAsyncCart();
+
+  const initializeBlackcartCart = () => {
+    let result: CartItem[] = [];
+    cart?.lines?.nodes.forEach((line) => {
+      result.push({
+        id: line.merchandise.id,
+        isTbyb: line.sellingPlanAllocation != null,
+        quantity: line.quantity,
+        price: {
+          amount: Number(line.cost.amountPerQuantity.amount),
+          currency: line.cost.amountPerQuantity.currencyCode,
+        },
+      });
+    });
+
+    setBlackcartCart(result);
+  };
+
+  useEffect(() => {
+    initializeBlackcartCart();
+  }, [cart]);
+
   return (
     <div className="grid gap-10">
       <div className="grid gap-4">
@@ -381,6 +423,24 @@ export function ProductForm({
         </VariantSelector>
         {selectedVariant && (
           <div className="grid items-stretch gap-4">
+            {!isOutOfStock && isHydrated && (
+              <Tbyb
+                variants={variants.map((variant) => ({
+                  id: variant.id,
+                  price: {
+                    amount: parseFloat(variant.price.amount),
+                    currency: variant.price.currencyCode,
+                  },
+                  sellingPlans: variant.sellingPlanAllocations.edges.map(
+                    (edge) => edge.node.sellingPlan.id,
+                  ),
+                }))}
+                currentVariantId={selectedVariant.id}
+                shopName="hydrogen-preview"
+                cart={blackcartCart}
+                tbybCallback={tbybCallback}
+              />
+            )}
             {isOutOfStock ? (
               <Button variant="secondary" disabled>
                 <Text>Sold out</Text>
@@ -391,6 +451,7 @@ export function ProductForm({
                   {
                     merchandiseId: selectedVariant.id!,
                     quantity: 1,
+                    ...(sellingPlanId ? {sellingPlanId: sellingPlanId} : {}),
                   },
                 ]}
                 variant="primary"
@@ -403,11 +464,16 @@ export function ProductForm({
                   <span>Add to Cart</span> <span>·</span>{' '}
                   <Money
                     withoutTrailingZeros
-                    data={selectedVariant?.price!}
+                    data={{
+                      ...selectedVariant?.price!,
+                      amount: isTbybSelected
+                        ? '0'
+                        : selectedVariant?.price?.amount,
+                    }}
                     as="span"
                     data-test="price"
                   />
-                  {isOnSale && (
+                  {isOnSale && !isTbybSelected && (
                     <Money
                       withoutTrailingZeros
                       data={selectedVariant?.compareAtPrice!}
@@ -513,6 +579,15 @@ const PRODUCT_VARIANT_FRAGMENT = `#graphql
     product {
       title
       handle
+    }
+    sellingPlanAllocations(first:20) {
+      edges {
+        node {
+          sellingPlan {
+            id
+          }
+        }
+      }
     }
   }
 `;
